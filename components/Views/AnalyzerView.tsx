@@ -230,7 +230,7 @@ const AnalyzerView: React.FC = () => {
           </div>
         </div>
 
-        {/* Uploaded Files Grid (Moved UP) */}
+        {/* Uploaded Files Grid - Moved UP */}
         {files.length > 0 && (
             <div className="shrink-0 bg-white rounded-xl p-3 shadow-sm border border-gray-200">
                 <h4 className="text-xs font-semibold text-gray-500 mb-2 uppercase flex items-center">
@@ -258,7 +258,7 @@ const AnalyzerView: React.FC = () => {
             </div>
         )}
 
-        {/* Portfolio Analysis Visualization (Pie Chart & Detailed Table) - Moved below uploaded files logic but typically renders if available */}
+        {/* Portfolio Analysis Visualization (Pie Chart & Detailed Table) */}
         {portfolioAnalysis && (
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 animate-fade-in flex flex-col gap-4">
                <div className="flex justify-between items-start border-b border-gray-100 pb-2">
@@ -268,17 +268,17 @@ const AnalyzerView: React.FC = () => {
                    </div>
                </div>
                
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                   {/* Left: Pie Chart */}
-                   <div className="h-32 w-full relative">
+               <div className="flex flex-col gap-4 items-center">
+                   {/* Top: Pie Chart */}
+                   <div className="h-40 w-full relative">
                        <ResponsiveContainer width="100%" height="100%">
                            <RechartsPieChart>
                                <Pie
                                    data={portfolioAnalysis.sectors}
                                    cx="50%"
                                    cy="50%"
-                                   innerRadius={35}
-                                   outerRadius={55}
+                                   innerRadius={45}
+                                   outerRadius={65}
                                    paddingAngle={2}
                                    dataKey="value"
                                >
@@ -292,33 +292,33 @@ const AnalyzerView: React.FC = () => {
                        </ResponsiveContainer>
                    </div>
 
-                   {/* Right: Detailed Table */}
-                   <div className="w-full">
+                   {/* Bottom: Detailed Table */}
+                   <div className="w-full overflow-x-auto">
                        <table className="w-full text-[10px] text-left">
                            <thead>
                                <tr className="text-gray-400 border-b border-gray-100">
                                    <th className="pb-1 font-medium">Fund</th>
                                    <th className="pb-1 text-right font-medium">Alloc</th>
                                    <th className="pb-1 text-right font-medium">1Y</th>
-                                   <th className="pb-1 text-right font-medium hidden xl:table-cell">3Y</th>
-                                   <th className="pb-1 text-right font-medium hidden xl:table-cell">5Y</th>
+                                   <th className="pb-1 text-right font-medium">3Y</th>
+                                   <th className="pb-1 text-right font-medium">5Y</th>
                                    <th className="pb-1 text-right font-medium">FER</th>
                                </tr>
                            </thead>
                            <tbody>
                                {portfolioAnalysis.funds.map((fund, idx) => (
                                    <tr key={idx} className="border-b border-gray-50 last:border-0">
-                                       <td className="py-1.5 pr-1 truncate max-w-[70px]" title={fund.constituent_fund}>
+                                       <td className="py-1.5 pr-1 truncate max-w-[120px]" title={fund.constituent_fund}>
                                            {fund.constituent_fund.split(' - ')[0].replace('Manulife MPF ', '')}
                                        </td>
                                        <td className="py-1.5 text-right font-semibold text-gray-700">{fund.allocation}%</td>
                                        <td className={`py-1.5 text-right ${fund.annualized_return_1y >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                            {fund.annualized_return_1y.toFixed(1)}%
                                        </td>
-                                       <td className={`py-1.5 text-right hidden xl:table-cell ${fund.annualized_return_3y >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                       <td className={`py-1.5 text-right ${fund.annualized_return_3y >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                            {fund.annualized_return_3y.toFixed(1)}%
                                        </td>
-                                       <td className={`py-1.5 text-right hidden xl:table-cell ${fund.annualized_return_5y >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                       <td className={`py-1.5 text-right ${fund.annualized_return_5y >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                            {fund.annualized_return_5y.toFixed(1)}%
                                        </td>
                                        <td className="py-1.5 text-right text-gray-500">{fund.latest_fer.toFixed(2)}%</td>

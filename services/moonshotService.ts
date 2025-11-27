@@ -23,9 +23,17 @@ export const callKimiAPI = async (userMessage: string, contextFunds: MPFFund[], 
   - Support English and Traditional Chinese.
   `;
 
+  // Map application message format to API format
+  // sender: 'user' | 'bot'  -> role: 'user' | 'assistant'
+  // text -> content
+  const formattedHistory = history.slice(-6).map(msg => ({
+    role: msg.sender === 'user' ? 'user' : 'assistant',
+    content: msg.text || ' ' // Ensure content is never empty
+  }));
+
   const messages = [
     { role: 'system', content: systemPrompt },
-    ...history.slice(-6), // Keep last 6 messages
+    ...formattedHistory,
     { role: 'user', content: userMessage }
   ];
 
