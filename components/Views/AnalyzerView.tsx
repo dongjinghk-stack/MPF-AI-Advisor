@@ -1,10 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, X, Send, FileText, Key, RotateCcw } from 'lucide-react';
+import { Upload, X, Send, FileText, Key, RotateCcw, Eye, EyeOff } from 'lucide-react';
 import { UploadedFile, ChatMessage, MPFFund } from '../../types';
 import ChatBubble from '../Chat/ChatBubble';
 import { callKimiAPI, parseResponseForVisualization } from '../../services/moonshotService';
 import { getFunds } from '../../services/dataService';
+import FundDetailModal from '../Modals/FundDetailModal';
 import { 
   PieChart as RechartsPieChart, 
   Pie, 
@@ -41,11 +42,12 @@ const AnalyzerView: React.FC = () => {
   const [visibleTrendFunds, setVisibleTrendFunds] = useState<Set<string>>(new Set());
 
   // Fund Sorting State
-  const [fundSortType, setFundSortType] = useState<'allocation' | 'return' | 'risk'>('allocation');
+  const [fundSortType, setFundSortType] = useState<'allocation' | 'return' | 'return3y' | 'return5y' | 'risk'>('allocation');
 
   // Modal State
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
+  const [selectedFund, setSelectedFund] = useState<MPFFund | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -84,6 +86,25 @@ const AnalyzerView: React.FC = () => {
         }
         return next;
     });
+  };
+
+  const resetFilters = () => {
+      if (portfolioAnalysis) {
+          setVisibleTrendFunds(new Set(portfolioAnalysis.funds.map(f => f.constituent_fund)));
+      }
+  };
+
+  const resetPortfolio = () => {
+      setPortfolioAnalysis(null);
+      setFiles([]);
+      setMessages([{
+        id: '1',
+        sender: 'bot',
+        text: "Hello! I'm your MPF assistant. Upload your statement or describe your portfolio, and I'll analyze it using real market data.",
+        timestamp: new Date()
+      }]);
+      setVisibleTrendFunds(new Set());
+      setSelectedFund(null);
   };
 
   // Load liked messages from local storage on mount
@@ -252,9 +273,17 @@ const AnalyzerView: React.FC = () => {
     return [...portfolioAnalysis.funds].sort((a, b) => {
         if (fundSortType === 'allocation') return b.allocation - a.allocation;
         if (fundSortType === 'return') return b.annualized_return_1y - a.annualized_return_1y;
+        if (fundSortType === 'return3y') return b.annualized_return_3y - a.annualized_return_3y;
+        if (fundSortType === 'return5y') return b.annualized_return_5y - a.annualized_return_5y;
         if (fundSortType === 'risk') return b.risk_class - a.risk_class;
         return 0;
     });
+  };
+
+  const getRiskColor = (risk: number) => {
+      if (risk <= 2) return 'bg-green-100 text-green-700 border-green-200';
+      if (risk <= 5) return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      return 'bg-red-100 text-red-700 border-red-200';
   };
 
   return (
@@ -313,10 +342,20 @@ const AnalyzerView: React.FC = () => {
         {portfolioAnalysis && (
             <>
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
-                    <h3 className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
-                        <span>Current Portfolio</span>
-                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{portfolioAnalysis.riskLevel}</span>
-                    </h3>
+                    <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                            <span>Current Portfolio</span>
+                            <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{portfolioAnalysis.riskLevel}</span>
+                        </h3>
+                        <button 
+                            onClick={resetPortfolio}
+                            className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                            title="Reset Portfolio Analysis"
+                        >
+                            <RotateCcw size={12} />
+                            Reset
+                        </button>
+                    </div>
                     <div className="h-48 w-full min-w-0 mb-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <RechartsPieChart>
@@ -356,7 +395,21 @@ const AnalyzerView: React.FC = () => {
                                     className={`p-1 rounded text-[10px] font-medium transition-colors ${fundSortType === 'return' ? 'bg-blue-100 text-blue-700' : 'text-gray-400 hover:bg-gray-50'}`}
                                     title="Sort by 1Y Return"
                                 >
-                                    Ret
+                                    1Y
+                                </button>
+                                <button 
+                                    onClick={() => setFundSortType('return3y')}
+                                    className={`p-1 rounded text-[10px] font-medium transition-colors ${fundSortType === 'return3y' ? 'bg-blue-100 text-blue-700' : 'text-gray-400 hover:bg-gray-50'}`}
+                                    title="Sort by 3Y Return"
+                                >
+                                    3Y
+                                </button>
+                                <button 
+                                    onClick={() => setFundSortType('return5y')}
+                                    className={`p-1 rounded text-[10px] font-medium transition-colors ${fundSortType === 'return5y' ? 'bg-blue-100 text-blue-700' : 'text-gray-400 hover:bg-gray-50'}`}
+                                    title="Sort by 5Y Return"
+                                >
+                                    5Y
                                 </button>
                                 <button 
                                     onClick={() => setFundSortType('risk')}
@@ -369,21 +422,51 @@ const AnalyzerView: React.FC = () => {
                         </div>
                         
                         <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                            {getSortedFunds().map((fund) => (
-                                <div key={fund.constituent_fund} className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-gray-50 border border-transparent hover:border-gray-100 transition-all">
+                            {getSortedFunds().map((fund) => {
+                                const isVisible = visibleTrendFunds.has(fund.constituent_fund);
+                                return (
+                                <div 
+                                    key={fund.constituent_fund} 
+                                    onClick={() => setSelectedFund(fund)}
+                                    className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-gray-50 border border-transparent hover:border-gray-100 transition-all cursor-pointer group"
+                                >
                                     <div className="flex flex-col max-w-[60%]">
-                                        <span className="font-medium text-gray-700 truncate" title={fund.constituent_fund}>
+                                        <span className="font-medium text-gray-700 truncate group-hover:text-blue-600" title={fund.constituent_fund}>
                                             {fund.constituent_fund}
                                         </span>
-                                        <span className="text-[10px] text-gray-400">
-                                            Risk: {fund.risk_class} • 1Y: <span className={fund.annualized_return_1y >= 0 ? 'text-green-600' : 'text-red-600'}>{fund.annualized_return_1y.toFixed(1)}%</span>
-                                        </span>
+                                        <div className="flex items-center gap-1 mt-0.5">
+                                            <span className={`text-[9px] px-1 rounded-sm border ${getRiskColor(fund.risk_class)}`}>
+                                                R{fund.risk_class}
+                                            </span>
+                                            <span className="text-[10px] text-gray-400">
+                                                • 1Y: <span className={fund.annualized_return_1y >= 0 ? 'text-green-600' : 'text-red-600'}>{fund.annualized_return_1y.toFixed(1)}%</span>
+                                                {fundSortType === 'return3y' && (
+                                                     <> • 3Y: <span className={fund.annualized_return_3y >= 0 ? 'text-green-600' : 'text-red-600'}>{fund.annualized_return_3y.toFixed(1)}%</span></>
+                                                )}
+                                                {fundSortType === 'return5y' && (
+                                                     <> • 5Y: <span className={fund.annualized_return_5y >= 0 ? 'text-green-600' : 'text-red-600'}>{fund.annualized_return_5y.toFixed(1)}%</span></>
+                                                )}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="font-bold text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded">
-                                        {fund.allocation}%
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleFundVisibility(fund.constituent_fund);
+                                            }}
+                                            className={`p-1 rounded-full hover:bg-gray-200 transition-colors ${isVisible ? 'text-blue-500' : 'text-gray-300'}`}
+                                            title={isVisible ? "Hide from chart" : "Show on chart"}
+                                        >
+                                            {isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
+                                        </button>
+                                        <div className="font-bold text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded group-hover:bg-blue-50 group-hover:text-blue-700">
+                                            {fund.allocation}%
+                                        </div>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
@@ -391,7 +474,12 @@ const AnalyzerView: React.FC = () => {
                 {/* Historical Trends Chart */}
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-                        <h3 className="text-sm font-bold text-gray-800">Historical Performance (5Y)</h3>
+                        <div className="flex items-center gap-2">
+                             <h3 className="text-sm font-bold text-gray-800">Historical Performance (5Y)</h3>
+                             <button onClick={resetFilters} className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors" title="Reset Filters">
+                                <RotateCcw size={12} />
+                             </button>
+                        </div>
                         
                         {/* Fund Filter Toggles */}
                         <div className="flex flex-wrap gap-2">
@@ -436,15 +524,35 @@ const AnalyzerView: React.FC = () => {
                                     width={35} 
                                 />
                                 <RechartsTooltip 
-                                    contentStyle={{ 
-                                        fontSize: '12px', 
-                                        borderRadius: '8px', 
-                                        border: 'none', 
-                                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
-                                        padding: '8px 12px'
+                                    content={({ active, payload, label }) => {
+                                        if (active && payload && payload.length) {
+                                            const dataPoint = payload[0].payload;
+                                            return (
+                                                <div className="bg-white p-3 border border-gray-200 shadow-xl rounded-lg text-xs z-50">
+                                                    <p className="font-bold mb-2 text-gray-800 border-b border-gray-100 pb-1">Year {label}</p>
+                                                    <div className="space-y-1">
+                                                    {portfolioAnalysis.funds.map((f, idx) => (
+                                                        <div key={f.constituent_fund} className="flex justify-between gap-4 items-center">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span 
+                                                                    className="w-2 h-2 rounded-full" 
+                                                                    style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}
+                                                                />
+                                                                <span className={`max-w-[120px] truncate ${visibleTrendFunds.has(f.constituent_fund) ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>
+                                                                    {f.constituent_fund}
+                                                                </span>
+                                                            </div>
+                                                            <span className="font-mono font-semibold">
+                                                                {dataPoint[f.constituent_fund]?.toFixed(2)}%
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
                                     }}
-                                    formatter={(value: number, name: string) => [`${value.toFixed(2)}%`, name]}
-                                    labelStyle={{ color: '#374151', fontWeight: 600, marginBottom: '4px' }}
                                 />
                                 {portfolioAnalysis.funds.map((fund, i) => (
                                     visibleTrendFunds.has(fund.constituent_fund) && (
@@ -510,6 +618,9 @@ const AnalyzerView: React.FC = () => {
             )}
         </div>
       </div>
+
+      {/* Fund Detail Modal */}
+      {selectedFund && <FundDetailModal fund={selectedFund} onClose={() => setSelectedFund(null)} />}
 
       {/* API Key Modal */}
       {showApiKeyModal && (
