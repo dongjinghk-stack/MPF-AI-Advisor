@@ -1,10 +1,25 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, Send, FileText, Key, RotateCcw } from 'lucide-react';
 import { UploadedFile, ChatMessage, MPFFund } from '../../types';
 import ChatBubble from '../Chat/ChatBubble';
 import { callKimiAPI, parseResponseForVisualization } from '../../services/moonshotService';
 import { getFunds } from '../../services/dataService';
-import { PieChart as RechartsPieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
+import { 
+  PieChart as RechartsPieChart, 
+  Pie, 
+  Cell, 
+  Tooltip as RechartsTooltip, 
+  ResponsiveContainer, 
+  Legend,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid
+} from 'recharts';
+
+const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1'];
 
 interface AnalyzedPortfolio {
     sectors: { name: string; value: number; color: string }[];
@@ -21,6 +36,12 @@ const AnalyzerView: React.FC = () => {
   
   // Portfolio Analysis State
   const [portfolioAnalysis, setPortfolioAnalysis] = useState<AnalyzedPortfolio | null>(null);
+  
+  // Line Chart Filter State
+  const [visibleTrendFunds, setVisibleTrendFunds] = useState<Set<string>>(new Set());
+
+  // Fund Sorting State
+  const [fundSortType, setFundSortType] = useState<'allocation' | 'return' | 'risk'>('allocation');
 
   // Modal State
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
@@ -45,6 +66,25 @@ const AnalyzerView: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Update visible funds when analysis changes
+  useEffect(() => {
+    if (portfolioAnalysis) {
+        setVisibleTrendFunds(new Set(portfolioAnalysis.funds.map(f => f.constituent_fund)));
+    }
+  }, [portfolioAnalysis]);
+
+  const toggleFundVisibility = (fundName: string) => {
+    setVisibleTrendFunds(prev => {
+        const next = new Set(prev);
+        if (next.has(fundName)) {
+            next.delete(fundName);
+        } else {
+            next.add(fundName);
+        }
+        return next;
+    });
+  };
 
   // Load liked messages from local storage on mount
   useEffect(() => {
@@ -193,271 +233,304 @@ const AnalyzerView: React.FC = () => {
     }
   };
 
-  const quickActions = [
-    "Plan for retirement in 15 years",
-    "What is my risk level?",
-    "Suggest a High Growth portfolio",
-    "Switching recommendations"
-  ];
+  // Prepare data for line chart
+  const getTrendData = (funds: MPFFund[]) => {
+    const years = [2020, 2021, 2022, 2023, 2024];
+    return years.map(year => {
+        const item: any = { year: year.toString() };
+        funds.forEach(fund => {
+            const key = `return_${year}` as keyof MPFFund;
+            item[fund.constituent_fund] = fund[key];
+        });
+        return item;
+    });
+  };
+
+  // Sort funds helper
+  const getSortedFunds = () => {
+    if (!portfolioAnalysis) return [];
+    return [...portfolioAnalysis.funds].sort((a, b) => {
+        if (fundSortType === 'allocation') return b.allocation - a.allocation;
+        if (fundSortType === 'return') return b.annualized_return_1y - a.annualized_return_1y;
+        if (fundSortType === 'risk') return b.risk_class - a.risk_class;
+        return 0;
+    });
+  };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-140px)] min-h-[600px] relative">
-      
-      {/* LEFT: Upload & Analysis */}
-      <div className="lg:col-span-5 flex flex-col space-y-4 h-full overflow-y-auto">
-        {/* COMPACT Upload Control */}
-        <div 
-          className={`shrink-0 border-2 border-dashed rounded-xl transition-all duration-300 p-4 bg-white shadow-sm
-            ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'}`}
-          onDragOver={handleDragOver}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="bg-blue-100 p-2 rounded-full">
-                <Upload className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-gray-800">Upload Portfolio</h3>
-                <p className="text-xs text-gray-500">PDFs or Images</p>
-              </div>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-9rem)]">
+      {/* Sidebar / Analysis Panel */}
+      <div className="lg:col-span-4 flex flex-col gap-4 overflow-y-auto pr-2">
+        {/* API Key Banner if needed */}
+        {!apiKey && (
+            <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 text-xs text-yellow-800 flex justify-between items-center">
+                <span>API Key required for AI analysis</span>
+                <button onClick={openApiKeyModal} className="flex items-center gap-1 font-bold hover:underline">
+                    <Key size={12} /> Set Key
+                </button>
             </div>
-            <label className="px-4 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 cursor-pointer font-medium transition-colors shadow-sm whitespace-nowrap">
-              Browse
-              <input type="file" className="hidden" multiple onChange={(e) => handleFiles(e.target.files)} />
+        )}
+
+        {/* File Upload Zone */}
+        <div
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center transition-colors
+                ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 bg-white'}`}
+        >
+            <Upload className={`w-8 h-8 mb-2 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
+            <p className="text-sm font-medium text-gray-700">Drag & drop MPF statements</p>
+            <p className="text-xs text-gray-400 mt-1">PDF or Images supported</p>
+            <input type="file" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} id="file-upload" />
+            <label htmlFor="file-upload" className="mt-3 px-3 py-1.5 bg-white border border-gray-300 rounded-md text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer shadow-sm">
+                Browse Files
             </label>
-          </div>
         </div>
 
-        {/* Uploaded Files Grid - Moved UP */}
+        {/* File List */}
         {files.length > 0 && (
-            <div className="shrink-0 bg-white rounded-xl p-3 shadow-sm border border-gray-200">
-                <h4 className="text-xs font-semibold text-gray-500 mb-2 uppercase flex items-center">
-                    <FileText className="w-3 h-3 mr-1" /> Uploaded ({files.length})
-                </h4>
-                <div className="grid grid-cols-2 gap-2">
-                {files.map(file => (
-                    <div key={file.id} className="relative flex items-center p-2 bg-gray-50 rounded border border-gray-100 hover:border-blue-200 transition-colors">
-                        <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center text-blue-600 text-[10px] font-bold mr-2 shrink-0">
-                            {file.name.split('.').pop()?.toUpperCase()}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="bg-gray-50 px-3 py-2 border-b border-gray-100 text-xs font-semibold text-gray-500">
+                    Uploaded Files ({files.length})
+                </div>
+                <div className="max-h-32 overflow-y-auto">
+                    {files.map(file => (
+                        <div key={file.id} className="flex items-center justify-between px-3 py-2 text-sm border-b border-gray-50 last:border-0">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                                <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+                                <span className="truncate max-w-[150px]">{file.name}</span>
+                            </div>
+                            <button onClick={() => setFiles(prev => prev.filter(f => f.id !== file.id))} className="text-gray-400 hover:text-red-500">
+                                <X size={14} />
+                            </button>
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-gray-700 truncate" title={file.name}>{file.name}</p>
-                            <p className="text-[9px] text-green-600">Analyzed</p>
-                        </div>
-                        <button 
-                            onClick={() => setFiles(files.filter(f => f.id !== file.id))}
-                            className="text-gray-300 hover:text-red-500 ml-1"
-                        >
-                            <X className="w-3 h-3" />
-                        </button>
-                    </div>
-                ))}
+                    ))}
                 </div>
             </div>
         )}
 
-        {/* Portfolio Analysis Visualization (Pie Chart & Detailed Table) */}
+        {/* Portfolio Visualization (Charts) */}
         {portfolioAnalysis && (
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 animate-fade-in flex flex-col gap-4">
-               <div className="flex justify-between items-start border-b border-gray-100 pb-2">
-                   <div>
-                       <h4 className="text-sm font-bold text-gray-800">Portfolio Composition</h4>
-                       <p className="text-xs text-gray-500">Detected Risk: <span className="font-semibold text-blue-600">{portfolioAnalysis.riskLevel}</span></p>
-                   </div>
-               </div>
-               
-               <div className="flex flex-col gap-4 items-center">
-                   {/* Top: Pie Chart */}
-                   <div className="h-40 w-full relative">
-                       <ResponsiveContainer width="100%" height="100%">
-                           <RechartsPieChart>
-                               <Pie
-                                   data={portfolioAnalysis.sectors}
-                                   cx="50%"
-                                   cy="50%"
-                                   innerRadius={45}
-                                   outerRadius={65}
-                                   paddingAngle={2}
-                                   dataKey="value"
-                               >
-                                   {portfolioAnalysis.sectors.map((entry, index) => (
-                                       <Cell key={`cell-${index}`} fill={entry.color} />
-                                   ))}
-                               </Pie>
-                               <RechartsTooltip />
-                               <Legend wrapperStyle={{fontSize: '10px'}} layout="vertical" verticalAlign="middle" align="right" />
-                           </RechartsPieChart>
-                       </ResponsiveContainer>
-                   </div>
+            <>
+                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+                    <h3 className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+                        <span>Current Portfolio</span>
+                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{portfolioAnalysis.riskLevel}</span>
+                    </h3>
+                    <div className="h-48 w-full min-w-0 mb-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RechartsPieChart>
+                                <Pie
+                                    data={portfolioAnalysis.sectors}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={40}
+                                    outerRadius={60}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {portfolioAnalysis.sectors.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <RechartsTooltip />
+                                <Legend wrapperStyle={{fontSize: '11px'}} />
+                            </RechartsPieChart>
+                        </ResponsiveContainer>
+                    </div>
 
-                   {/* Bottom: Detailed Table */}
-                   <div className="w-full overflow-x-auto">
-                       <table className="w-full text-[10px] text-left">
-                           <thead>
-                               <tr className="text-gray-400 border-b border-gray-100">
-                                   <th className="pb-1 font-medium">Fund</th>
-                                   <th className="pb-1 text-right font-medium">Alloc</th>
-                                   <th className="pb-1 text-right font-medium">1Y</th>
-                                   <th className="pb-1 text-right font-medium">3Y</th>
-                                   <th className="pb-1 text-right font-medium">5Y</th>
-                                   <th className="pb-1 text-right font-medium">FER</th>
-                               </tr>
-                           </thead>
-                           <tbody>
-                               {portfolioAnalysis.funds.map((fund, idx) => (
-                                   <tr key={idx} className="border-b border-gray-50 last:border-0">
-                                       <td className="py-1.5 pr-1 truncate max-w-[120px]" title={fund.constituent_fund}>
-                                           {fund.constituent_fund.split(' - ')[0].replace('Manulife MPF ', '')}
-                                       </td>
-                                       <td className="py-1.5 text-right font-semibold text-gray-700">{fund.allocation}%</td>
-                                       <td className={`py-1.5 text-right ${fund.annualized_return_1y >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                           {fund.annualized_return_1y.toFixed(1)}%
-                                       </td>
-                                       <td className={`py-1.5 text-right ${fund.annualized_return_3y >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                           {fund.annualized_return_3y.toFixed(1)}%
-                                       </td>
-                                       <td className={`py-1.5 text-right ${fund.annualized_return_5y >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                           {fund.annualized_return_5y.toFixed(1)}%
-                                       </td>
-                                       <td className="py-1.5 text-right text-gray-500">{fund.latest_fer.toFixed(2)}%</td>
-                                   </tr>
-                               ))}
-                           </tbody>
-                       </table>
-                   </div>
-               </div>
-            </div>
+                    {/* Sortable Fund List */}
+                    <div className="border-t border-gray-100 pt-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-gray-600">Fund Breakdown</span>
+                            <div className="flex gap-1">
+                                <button 
+                                    onClick={() => setFundSortType('allocation')}
+                                    className={`p-1 rounded text-[10px] font-medium transition-colors ${fundSortType === 'allocation' ? 'bg-blue-100 text-blue-700' : 'text-gray-400 hover:bg-gray-50'}`}
+                                    title="Sort by Allocation"
+                                >
+                                    Alloc
+                                </button>
+                                <button 
+                                    onClick={() => setFundSortType('return')}
+                                    className={`p-1 rounded text-[10px] font-medium transition-colors ${fundSortType === 'return' ? 'bg-blue-100 text-blue-700' : 'text-gray-400 hover:bg-gray-50'}`}
+                                    title="Sort by 1Y Return"
+                                >
+                                    Ret
+                                </button>
+                                <button 
+                                    onClick={() => setFundSortType('risk')}
+                                    className={`p-1 rounded text-[10px] font-medium transition-colors ${fundSortType === 'risk' ? 'bg-blue-100 text-blue-700' : 'text-gray-400 hover:bg-gray-50'}`}
+                                    title="Sort by Risk"
+                                >
+                                    Risk
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                            {getSortedFunds().map((fund) => (
+                                <div key={fund.constituent_fund} className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-gray-50 border border-transparent hover:border-gray-100 transition-all">
+                                    <div className="flex flex-col max-w-[60%]">
+                                        <span className="font-medium text-gray-700 truncate" title={fund.constituent_fund}>
+                                            {fund.constituent_fund}
+                                        </span>
+                                        <span className="text-[10px] text-gray-400">
+                                            Risk: {fund.risk_class} • 1Y: <span className={fund.annualized_return_1y >= 0 ? 'text-green-600' : 'text-red-600'}>{fund.annualized_return_1y.toFixed(1)}%</span>
+                                        </span>
+                                    </div>
+                                    <div className="font-bold text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded">
+                                        {fund.allocation}%
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Historical Trends Chart */}
+                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                        <h3 className="text-sm font-bold text-gray-800">Historical Performance (5Y)</h3>
+                        
+                        {/* Fund Filter Toggles */}
+                        <div className="flex flex-wrap gap-2">
+                            {portfolioAnalysis.funds.map((fund, i) => {
+                                const isVisible = visibleTrendFunds.has(fund.constituent_fund);
+                                const color = CHART_COLORS[i % CHART_COLORS.length];
+                                const simpleName = fund.constituent_fund;
+                                
+                                return (
+                                    <button
+                                        key={fund.constituent_fund}
+                                        onClick={() => toggleFundVisibility(fund.constituent_fund)}
+                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all duration-200
+                                            ${isVisible 
+                                                ? 'bg-white border-gray-200 shadow-sm text-gray-700' 
+                                                : 'bg-gray-100 border-transparent text-gray-400 opacity-60'}`}
+                                    >
+                                        <span className={`w-2 h-2 rounded-full transition-transform duration-200 ${isVisible ? 'scale-100' : 'scale-75'}`} style={{ backgroundColor: isVisible ? color : '#9CA3AF' }}></span>
+                                        {simpleName}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    
+                    <div className="h-64 w-full min-w-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={getTrendData(portfolioAnalysis.funds)} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                                <XAxis 
+                                    dataKey="year" 
+                                    tick={{fontSize: 10, fill: '#6B7280'}} 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    padding={{ left: 10, right: 10 }}
+                                />
+                                <YAxis 
+                                    tick={{fontSize: 10, fill: '#6B7280'}} 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    unit="%" 
+                                    width={35} 
+                                />
+                                <RechartsTooltip 
+                                    contentStyle={{ 
+                                        fontSize: '12px', 
+                                        borderRadius: '8px', 
+                                        border: 'none', 
+                                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+                                        padding: '8px 12px'
+                                    }}
+                                    formatter={(value: number, name: string) => [`${value.toFixed(2)}%`, name]}
+                                    labelStyle={{ color: '#374151', fontWeight: 600, marginBottom: '4px' }}
+                                />
+                                {portfolioAnalysis.funds.map((fund, i) => (
+                                    visibleTrendFunds.has(fund.constituent_fund) && (
+                                        <Line 
+                                            key={fund.constituent_fund}
+                                            type="monotone" 
+                                            dataKey={fund.constituent_fund} 
+                                            name={fund.constituent_fund}
+                                            stroke={CHART_COLORS[i % CHART_COLORS.length]} 
+                                            strokeWidth={2.5}
+                                            dot={{r: 3, fill: CHART_COLORS[i % CHART_COLORS.length], strokeWidth: 0}}
+                                            activeDot={{r: 5, strokeWidth: 2, stroke: '#fff'}}
+                                            animationDuration={1000}
+                                        />
+                                    )
+                                ))}
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </>
         )}
       </div>
 
-      {/* RIGHT: Chatbot */}
-      <div className="lg:col-span-7 flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden relative">
-        {/* Chat Header */}
-        <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <div className={`w-3 h-3 rounded-full ${apiKey ? 'bg-green-500' : 'bg-yellow-400'} animate-pulse`}></div>
-            <span className="font-semibold text-gray-700">Investment Assistant (Kimi AI)</span>
-          </div>
-          <div className="flex items-center space-x-3">
-             <button
-                onClick={openApiKeyModal}
-                className={`flex items-center space-x-1 text-xs font-medium px-2 py-1 rounded border transition-colors
-                   ${apiKey ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
-                title={apiKey ? "API Key Configured" : "Click to set API Key"}
-             >
-                <Key className="w-3 h-3" />
-                <span>{apiKey ? 'API Key Set' : 'Add API Key'}</span>
-             </button>
-             <button 
-                onClick={() => {
-                    setMessages([{id: 'init', sender: 'bot', text: 'Analysis reset.', timestamp: new Date()}]);
-                    setFiles([]);
-                    setPortfolioAnalysis(null);
-                }}
-                className="text-gray-400 hover:text-red-500 transition-colors"
-                title="Reset Chat"
-             >
-                <RotateCcw className="w-4 h-4" />
-             </button>
-          </div>
-        </div>
-
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/30 scrollbar-hide">
-          {messages.map((msg) => (
-            <ChatBubble key={msg.id} message={msg} onFeedback={handleFeedback} />
-          ))}
-          {isTyping && (
-             <div className="flex items-center space-x-2 text-gray-400 text-sm ml-4">
-                <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+      {/* Chat Area */}
+      <div className="lg:col-span-8 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 scrollbar-hide">
+            {messages.map((msg) => (
+                <ChatBubble key={msg.id} message={msg} onFeedback={handleFeedback} />
+            ))}
+            {isTyping && (
+                <div className="flex justify-start w-full animate-pulse">
+                    <div className="bg-white border border-gray-100 px-4 py-3 rounded-2xl rounded-tl-none text-gray-400 text-sm">
+                        Analyzing market data...
+                    </div>
                 </div>
-                <span>Analyzing data...</span>
-             </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Quick Actions */}
-        <div className="px-4 py-2 border-t border-gray-100 bg-white">
-           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              {quickActions.map((action, i) => (
-                 <button 
-                    key={i}
-                    onClick={() => setInputMessage(action)}
-                    className="whitespace-nowrap px-3 py-1 bg-blue-50 text-blue-600 text-xs rounded-full border border-blue-100 hover:bg-blue-100 transition-colors"
-                 >
-                    {action}
-                 </button>
-              ))}
-           </div>
-        </div>
-
-        {/* Input Area */}
-        <div className="p-4 bg-white border-t border-gray-100">
-          <div className="flex items-center space-x-2">
-            <input 
-              type="text" 
-              className="flex-1 border border-gray-300 rounded-full px-4 py-3 bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-              placeholder="Ask about your portfolio optimization..."
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-            />
-            <button 
-              onClick={handleSendMessage}
-              disabled={!inputMessage.trim() || isTyping}
-              className={`p-3 rounded-full text-white transition-all
-                ${!inputMessage.trim() || isTyping ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-md transform hover:scale-105'}
-              `}
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </div>
+            )}
+            <div ref={messagesEndRef} />
         </div>
         
-        {/* API Key Modal Overlay */}
-        {showApiKeyModal && (
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-             <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md animate-fade-in">
-                <h3 className="text-lg font-bold text-gray-800 mb-2 flex items-center">
-                   <Key className="w-5 h-5 mr-2 text-blue-600" />
-                   Configure Kimi API Key
-                </h3>
-                <p className="text-sm text-gray-500 mb-4">
-                   Enter your Moonshot AI API key to enable real-time portfolio analysis using the K2 Thinking Model.
+        <div className="p-4 bg-white border-t border-gray-100">
+            <div className="relative flex items-center">
+                <input
+                    type="text"
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="Ask for optimization advice..."
+                    className="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all"
+                />
+                <button 
+                    onClick={handleSendMessage}
+                    disabled={!inputMessage.trim()}
+                    className="absolute right-2 p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors"
+                >
+                    <Send className="w-4 h-4" />
+                </button>
+            </div>
+             {!apiKey && (
+                <p className="text-[10px] text-center text-gray-400 mt-2">
+                    Using demo mode. <button onClick={openApiKeyModal} className="text-blue-600 hover:underline">Set Custom API Key</button>
                 </p>
-                <div className="mb-4">
-                   <input
-                      type="password"
-                      value={tempApiKey}
-                      onChange={(e) => setTempApiKey(e.target.value)}
-                      placeholder="sk-..."
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                   />
-                </div>
-                <div className="flex justify-end space-x-3">
-                   <button
-                      onClick={() => setShowApiKeyModal(false)}
-                      className="px-4 py-2 text-gray-600 text-sm hover:bg-gray-100 rounded-lg transition-colors"
-                   >
-                      Cancel
-                   </button>
-                   <button
-                      onClick={saveApiKey}
-                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                   >
-                      Save Key
-                   </button>
-                </div>
-             </div>
-          </div>
-        )}
+            )}
+        </div>
       </div>
+
+      {/* API Key Modal */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-scale-in">
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Configuration</h3>
+                <p className="text-sm text-gray-500 mb-4">Enter your Moonshot AI API key to enable analysis features.</p>
+                <input
+                    type="password"
+                    value={tempApiKey}
+                    onChange={(e) => setTempApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+                <div className="flex justify-end gap-2">
+                    <button onClick={() => setShowApiKeyModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onClick={saveApiKey} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Key</button>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

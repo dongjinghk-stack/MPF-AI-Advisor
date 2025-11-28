@@ -71,38 +71,42 @@ const RankingsView: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Bar Chart */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-[400px]">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <h2 className="text-lg font-bold text-gray-800 mb-4">Performance Comparison (Top 10)</h2>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={topFunds} margin={{top: 5, right: 30, left: 20, bottom: 60}}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis 
-                dataKey="constituent_fund" 
-                angle={-45} 
-                textAnchor="end" 
-                interval={0} 
-                height={80} 
-                tick={{fontSize: 10}}
-              />
-              <YAxis />
-              <RechartsTooltip />
-              <Bar dataKey={`annualized_return_${timePeriod.toLowerCase()}`} name="Return %" fill="#2563EB" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="h-[320px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topFunds} margin={{top: 5, right: 30, left: 20, bottom: 60}}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis 
+                  dataKey="constituent_fund" 
+                  angle={-45} 
+                  textAnchor="end" 
+                  interval={0} 
+                  height={80} 
+                  tick={{fontSize: 10}}
+                />
+                <YAxis />
+                <RechartsTooltip />
+                <Bar dataKey={`annualized_return_${timePeriod.toLowerCase()}`} name="Return %" fill="#2563EB" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         {/* Scatter Chart */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-[400px]">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <h2 className="text-lg font-bold text-gray-800 mb-4">Risk vs Return Analysis</h2>
-          <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{top: 20, right: 20, bottom: 20, left: 20}}>
-              <CartesianGrid />
-              <XAxis type="number" dataKey="latest_fer" name="FER" unit="%" label={{ value: 'Fund Expense Ratio', position: 'insideBottom', offset: -10 }} />
-              <YAxis type="number" dataKey="annualized_return_1y" name="1Y Return" unit="%" label={{ value: '1Y Return', angle: -90, position: 'insideLeft' }} />
-              <RechartsTooltip cursor={{ strokeDasharray: '3 3' }} />
-              <Scatter name="Funds" data={allFunds} fill="#2563EB" opacity={0.6} />
-            </ScatterChart>
-          </ResponsiveContainer>
+          <div className="h-[320px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart margin={{top: 20, right: 20, bottom: 20, left: 20}}>
+                <CartesianGrid />
+                <XAxis type="number" dataKey="latest_fer" name="FER" unit="%" label={{ value: 'Fund Expense Ratio', position: 'insideBottom', offset: -10 }} />
+                <YAxis type="number" dataKey="annualized_return_1y" name="1Y Return" unit="%" label={{ value: '1Y Return', angle: -90, position: 'insideLeft' }} />
+                <RechartsTooltip cursor={{ strokeDasharray: '3 3' }} />
+                <Scatter name="Funds" data={allFunds} fill="#2563EB" opacity={0.6} />
+              </ScatterChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>

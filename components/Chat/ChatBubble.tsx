@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import { ChatMessage } from '../../types';
 import ScenarioChart from './ScenarioChart';
@@ -8,8 +8,53 @@ interface ChatBubbleProps {
   onFeedback?: (messageId: string, feedback: 'like' | 'dislike') => void;
 }
 
+// Helper component to simulate typewriter/streaming effect
+const StreamingText: React.FC<{ text: string }> = ({ text }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  
+  useEffect(() => {
+    if (!text) {
+      setDisplayedText('');
+      return;
+    }
+
+    let currentIndex = 0;
+    const interval = setInterval(() => {
+      // Stream chunks of characters to simulate generation speed
+      if (currentIndex < text.length) {
+        const chunk = text.slice(currentIndex, currentIndex + 3);
+        setDisplayedText(prev => prev + chunk);
+        currentIndex += 3;
+      } else {
+        clearInterval(interval);
+        setDisplayedText(text);
+      }
+    }, 15);
+
+    return () => clearInterval(interval);
+  }, [text]);
+
+  return (
+    <div className="whitespace-pre-wrap">
+      {displayedText.split('\n').map((line, i) => (
+        <p key={i} className="min-h-[1rem]">{line}</p>
+      ))}
+    </div>
+  );
+};
+
 const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onFeedback }) => {
   const isBot = message.sender === 'bot';
+  
+  // Determine if we should animate the text. 
+  // We only animate if it's a bot message AND it was created recently (< 2s ago).
+  // This prevents re-animation of old messages on tab switch or re-render.
+  const [shouldAnimate] = useState(() => {
+    if (!isBot) return false;
+    const now = new Date();
+    const msgTime = new Date(message.timestamp);
+    return (now.getTime() - msgTime.getTime()) < 2000;
+  });
 
   return (
     <div className={`flex w-full mb-4 ${isBot ? 'justify-start' : 'justify-end'}`}>
@@ -21,12 +66,16 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onFeedback }) => {
             : 'bg-blue-600 text-white rounded-tr-none'
           }`}
         >
-          {/* Render Text with basic markdown-like line breaks */}
-          <div className="whitespace-pre-wrap">
-            {message.text.split('\n').map((line, i) => (
-                <p key={i} className="min-h-[1rem]">{line}</p>
-            ))}
-          </div>
+          {/* Render Text with typing effect if applicable */}
+          {shouldAnimate ? (
+            <StreamingText text={message.text} />
+          ) : (
+            <div className="whitespace-pre-wrap">
+              {message.text.split('\n').map((line, i) => (
+                  <p key={i} className="min-h-[1rem]">{line}</p>
+              ))}
+            </div>
+          )}
 
           {/* Feedback Controls (Only for Bot) */}
           {isBot && onFeedback && (

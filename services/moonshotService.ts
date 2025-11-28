@@ -79,6 +79,21 @@ export const parseResponseForVisualization = (responseText: string, allFunds: MP
   // Skip the first chunk (intro text)
   for (let i = 1; i < splitText.length; i++) {
     const segment = splitText[i];
+
+    // Attempt to extract a descriptive title from the first line (e.g., ": Aggressive Strategy")
+    let titleSuffix = '';
+    const firstLineEnd = segment.indexOf('\n');
+    if (firstLineEnd !== -1) {
+        let firstLine = segment.substring(0, firstLineEnd).trim();
+        // Clean up common leading separators (: -) and trailing markdown (** or *)
+        firstLine = firstLine.replace(/^[:\-\s]+/, '').replace(/[\*\s]+$/, '');
+        
+        // Use if it's a reasonable length for a title
+        if (firstLine.length > 0 && firstLine.length < 60) {
+            titleSuffix = `: ${firstLine}`;
+        }
+    }
+
     const allocations: ScenarioAllocation[] = [];
     
     // Find funds and percentages in this segment
@@ -125,7 +140,7 @@ export const parseResponseForVisualization = (responseText: string, allFunds: MP
     if (allocations.length > 0) {
       scenarios.push({
         number: i,
-        title: `Scenario ${i}`,
+        title: `Scenario ${i}${titleSuffix}`,
         allocations,
         text: segment.slice(0, 150) + '...', // Preview
         weightedFER: allocations.reduce((acc, curr) => acc + (curr.fer * (curr.allocation/100)), 0)
