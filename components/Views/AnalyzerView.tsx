@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, Send, FileText, Key, RotateCcw, Eye, EyeOff } from 'lucide-react';
 import { UploadedFile, ChatMessage, MPFFund, Scenario } from '../../types';
@@ -28,7 +27,11 @@ interface AnalyzedPortfolio {
     funds: (MPFFund & { allocation: number })[];
 }
 
-const AnalyzerView: React.FC = () => {
+interface AnalyzerViewProps {
+  onScenarioSelect?: (scenario: Scenario) => void;
+}
+
+const AnalyzerView: React.FC<AnalyzerViewProps> = ({ onScenarioSelect }) => {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
@@ -609,7 +612,7 @@ const AnalyzerView: React.FC = () => {
       <div className="lg:col-span-8 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 scrollbar-hide">
             {messages.map((msg) => (
-                <ChatBubble key={msg.id} message={msg} onFeedback={handleFeedback} />
+                <ChatBubble key={msg.id} message={msg} onFeedback={handleFeedback} onScenarioSelect={onScenarioSelect} />
             ))}
             {isTyping && (
                 <div className="flex justify-start w-full animate-pulse">

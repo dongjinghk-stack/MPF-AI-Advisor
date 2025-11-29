@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
-import { BarChart3, PieChart, ShieldCheck } from 'lucide-react';
+import { BarChart3, PieChart, ShieldCheck, ArrowRightLeft } from 'lucide-react';
 import RankingsView from './components/Views/RankingsView';
 import AnalyzerView from './components/Views/AnalyzerView';
+import FundTransferView from './components/Views/FundTransferView';
+import { Scenario } from './types';
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'rankings' | 'analyzer'>('rankings');
+  const [activeTab, setActiveTab] = useState<'rankings' | 'analyzer' | 'transfer'>('rankings');
+  const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
+
+  const handleScenarioSelect = (scenario: Scenario) => {
+    setSelectedScenario(scenario);
+    setActiveTab('transfer');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -16,9 +24,17 @@ function App() {
               <h1 className="text-2xl font-bold tracking-tight">Hong Kong MPF Fund Analyzer</h1>
               <p className="text-blue-200 text-sm mt-1 opacity-90">Professional Portfolio Optimization with AI Guidance</p>
             </div>
-            <div className="hidden md:flex items-center space-x-2 text-xs bg-white/10 px-3 py-1.5 rounded-lg border border-white/20">
+            <div className="hidden md:flex items-center space-x-2 text-xs bg-white/10 px-3 py-1.5 rounded-lg border border-white/20 hover:bg-white/20 transition-colors">
                <ShieldCheck className="w-4 h-4 text-green-400" />
-               <span>Verified Data: MPFA Official Platform</span>
+               <a 
+                 href="https://mfp.mpfa.org.hk/eng/mpp_list.jsp" 
+                 target="_blank" 
+                 rel="noopener noreferrer"
+                 className="hover:underline"
+                 title="Open MPFA Official Platform"
+               >
+                 Verified Data: MPFA Official Platform
+               </a>
             </div>
           </div>
         </div>
@@ -48,6 +64,16 @@ function App() {
               <PieChart className="w-5 h-5" />
               <span>Portfolio Analyzer</span>
             </button>
+            <button
+              onClick={() => setActiveTab('transfer')}
+              className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200
+                ${activeTab === 'transfer' 
+                  ? 'border-blue-600 text-blue-600' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            >
+              <ArrowRightLeft className="w-5 h-5" />
+              <span>Fund Transfer</span>
+            </button>
           </div>
         </div>
       </div>
@@ -55,7 +81,16 @@ function App() {
       {/* Main Content */}
       <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         <div className="transition-opacity duration-300 ease-in-out">
-          {activeTab === 'rankings' ? <RankingsView /> : <AnalyzerView />}
+          {/* We use display: none for AnalyzerView to preserve its state (chat history, uploaded files) when switching tabs */}
+          <div style={{ display: activeTab === 'rankings' ? 'block' : 'none' }}>
+            <RankingsView />
+          </div>
+          <div style={{ display: activeTab === 'analyzer' ? 'block' : 'none' }}>
+            <AnalyzerView onScenarioSelect={handleScenarioSelect} />
+          </div>
+          <div style={{ display: activeTab === 'transfer' ? 'block' : 'none' }}>
+            <FundTransferView scenario={selectedScenario} onReset={() => setActiveTab('analyzer')} />
+          </div>
         </div>
       </main>
 

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
-import { ChatMessage } from '../../types';
+import { ChatMessage, Scenario } from '../../types';
 import ScenarioChart from './ScenarioChart';
 
 interface ChatBubbleProps {
   message: ChatMessage;
   onFeedback?: (messageId: string, feedback: 'like' | 'dislike') => void;
+  onScenarioSelect?: (scenario: Scenario) => void;
 }
 
 // Helper component to simulate typewriter/streaming effect
@@ -43,7 +44,7 @@ const StreamingText: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
-const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onFeedback }) => {
+const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onFeedback, onScenarioSelect }) => {
   const isBot = message.sender === 'bot';
   
   // Determine if we should animate the text. 
@@ -103,7 +104,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onFeedback }) => {
           <div className="w-full mt-2 space-y-2">
             {message.sections.map((section, idx) => {
               if (section.type === 'scenario' && section.data) {
-                return <ScenarioChart key={idx} scenario={section.data} />;
+                return <ScenarioChart key={idx} scenario={section.data} onSelect={onScenarioSelect} />;
               }
               return null;
             })}
