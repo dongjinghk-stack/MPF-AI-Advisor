@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, Send, FileText, Key, RotateCcw, Eye, EyeOff } from 'lucide-react';
-import { UploadedFile, ChatMessage, MPFFund } from '../../types';
+import { UploadedFile, ChatMessage, MPFFund, Scenario } from '../../types';
 import ChatBubble from '../Chat/ChatBubble';
 import { callKimiAPI, parseResponseForVisualization } from '../../services/moonshotService';
 import { getFunds } from '../../services/dataService';
@@ -223,8 +223,36 @@ const AnalyzerView: React.FC = () => {
     setIsTyping(true);
 
     try {
-      const responseText = await callKimiAPI(userMsg.text, allFunds, messages, apiKey);
-      const { text, scenarios } = parseResponseForVisualization(responseText, allFunds);
+      // Create context string from portfolio analysis
+      const currentPortfolioContext = portfolioAnalysis 
+        ? `Risk Profile: ${portfolioAnalysis.riskLevel}
+           Allocations:
+           ${portfolioAnalysis.funds.map(f => `- ${f.constituent_fund}: ${f.allocation}%`).join('\n')}`
+        : undefined;
+
+      // Extract previously generated scenarios from chat history to maintain context
+      const lastScenarioMessage = [...messages].reverse().find(m => m.sender === 'bot' && m.sections?.some(s => s.type === 'scenario'));
+      let generatedScenariosContext = '';
+      
+      if (lastScenarioMessage && lastScenarioMessage.sections) {
+        const scenarios = lastScenarioMessage.sections
+          .filter(s => s.type === 'scenario' && s.data)
+          .map(s => s.data as Scenario);
+          
+        if (scenarios.length > 0) {
+          generatedScenariosContext = scenarios.map(s => 
+            `SCENARIO ${s.number} (${s.title}):\n` +
+            `Allocations: ${s.allocations.map(a => `${a.fund.constituent_fund} (${a.allocation}%)`).join(', ')}\n` +
+            `Stats: FER ${s.weightedFER?.toFixed(2)}%`
+          ).join('\n\n');
+        }
+      }
+
+      // Use all available funds for context to allow cross-scheme recommendations
+      const contextFunds = allFunds;
+
+      const responseText = await callKimiAPI(userMsg.text, contextFunds, messages, apiKey, currentPortfolioContext, generatedScenariosContext);
+      const { text, scenarios } = parseResponseForVisualization(responseText, contextFunds);
       
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),

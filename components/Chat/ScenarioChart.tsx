@@ -11,7 +11,7 @@ const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'
 
 const ScenarioChart: React.FC<ScenarioChartProps> = ({ scenario }) => {
   const data = scenario.allocations.map(a => ({
-    name: a.fund.constituent_fund.replace('Manulife MPF', '').trim().substring(0, 15) + '...',
+    name: a.fund.constituent_fund,
     value: a.allocation
   }));
 
