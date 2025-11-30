@@ -2,6 +2,7 @@ import React from 'react';
 import { Scenario } from '../../types';
 import { ArrowRightLeft, CheckCircle, AlertTriangle, RotateCcw } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import EnrollmentForm from '../Forms/EnrollmentForm';
 
 interface FundTransferViewProps {
   scenario: Scenario | null;
@@ -131,6 +132,9 @@ const FundTransferView: React.FC<FundTransferViewProps> = ({ scenario, onReset }
            </button>
         </div>
       </div>
+
+      {/* Merged Enrollment Form */}
+      <EnrollmentForm prefillAllocation={scenario} />
     </div>
   );
 };
