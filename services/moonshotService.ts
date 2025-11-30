@@ -1,5 +1,6 @@
 
 import { MPFFund, Scenario, ScenarioAllocation } from '../types';
+import { GoogleGenAI } from "@google/genai";
 
 // NOTE: In a production app, never hardcode API keys on the client. 
 // This should be proxied through a backend.
@@ -288,4 +289,54 @@ export const parseResponseForVisualization = (responseText: string, allFunds: MP
     text: responseText,
     scenarios
   };
+};
+
+// Generates an explanatory image for the Glossary tab using Gemini
+export const generateGlossaryImage = async (apiKey?: string): Promise<string> => {
+  if (!process.env.API_KEY && !apiKey) {
+    throw new Error("API Key is missing");
+  }
+  
+  const key = apiKey || process.env.API_KEY;
+  
+  try {
+    const ai = new GoogleGenAI({ apiKey: key });
+    // Using gemini-3-pro-image-preview as per instructions for high quality image generation
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-image-preview',
+      contents: {
+        parts: [
+          {
+            text: `Create a high-quality, educational infographic explaining Hong Kong MPF (Mandatory Provident Fund) concepts. 
+            Layout the image into 4 clear quadrants:
+            1. Returns: A line graph showing "Annualized Return" (smoothed) vs a bar chart showing "Calendar Year Return" (volatile).
+            2. Fund Types: Icons representing different risk buckets - Equity (Bull), Bond (Certificate), Mixed Assets (Basket), Conservative (Safe).
+            3. Risk Indicator: A colorful speedometer gauge ranging from Low (Green) to High (Red), labeled "Risk Class 1-7".
+            4. Fees: A visual breakdown of costs - Management Fee, Joining Fee, Withdrawal Charge, visualized as coins or a pie chart.
+            
+            The style should be professional, flat vector art, using a trustworthy blue and green color palette suitable for a financial dashboard. 
+            Text labels should be in English.`
+          },
+        ],
+      },
+      config: {
+        imageConfig: {
+            aspectRatio: "16:9",
+            imageSize: "1K"
+        }
+      }
+    });
+
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        const base64EncodeString: string = part.inlineData.data;
+        return `data:image/png;base64,${base64EncodeString}`;
+      }
+    }
+    throw new Error("No image data received");
+
+  } catch (error) {
+    console.error("Glossary Image Generation Error:", error);
+    throw error;
+  }
 };
